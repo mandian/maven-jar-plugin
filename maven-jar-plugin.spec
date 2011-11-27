@@ -1,6 +1,6 @@
 Name:           maven-jar-plugin
 Version:        2.3.1
-Release:        2
+Release:        4
 Summary:        Maven JAR Plugin
 
 Group:          Development/Java
