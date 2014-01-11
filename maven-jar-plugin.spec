@@ -1,18 +1,22 @@
+%{?_javapackages_macros:%_javapackages_macros}
 Name:           maven-jar-plugin
-Version:        2.3.1
-Release:        4
+Version:        2.4
+Release:        6.1%{?dist}
 Summary:        Maven JAR Plugin
 
-Group:          Development/Java
+
 License:        ASL 2.0
 URL:            http://maven.apache.org/plugins/maven-jar-plugin/
-Source0:        http://repo2.maven.org/maven2/org/apache/maven/plugins/maven-jar-plugin/2.3.1/maven-jar-plugin-2.3.1-source-release.zip
-BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+Source0:        http://repo2.maven.org/maven2/org/apache/maven/plugins/%{name}/%{version}/%{name}-%{version}-source-release.zip
+
+# Some classes from maven-artifact come in maven-core, added a dep in pom.xml
+Patch0:         %{name}-maven-core-dep.patch
 
 BuildArch: noarch
 
-BuildRequires: java-devel >= 0:1.6.0
-BuildRequires: maven2
+BuildRequires: java-devel >= 1:1.6.0
+BuildRequires: javapackages-tools >= 0.7.0
+BuildRequires: maven-local
 BuildRequires: maven-plugin-plugin
 BuildRequires: maven-jar-plugin
 BuildRequires: maven-install-plugin
@@ -28,7 +32,7 @@ BuildRequires: plexus-archiver
 BuildRequires: apache-commons-lang
 BuildRequires: plexus-utils
 BuildRequires: junit
-Requires: maven2
+Requires: maven
 Requires: maven-archiver
 Requires: plexus-archiver
 Requires: maven-archiver
@@ -36,20 +40,17 @@ Requires: apache-commons-lang
 Requires: plexus-utils
 Requires: maven-plugin-testing-harness
 Requires: junit
-Requires:       jpackage-utils
-Requires:       java
-Requires(post):       jpackage-utils
-Requires(postun):     jpackage-utils
+Requires: java
 
 Provides:       maven2-plugin-jar = %{version}-%{release}
 Obsoletes:      maven2-plugin-jar <= 0:2.0.8
 
 %description
-Builds a Java Archive (JAR) file from the compiled 
+Builds a Java Archive (JAR) file from the compiled
 project classes and resources.
 
 %package javadoc
-Group:          Development/Java
+
 Summary:        Javadoc for %{name}
 Requires:       jpackage-utils
 
@@ -58,59 +59,81 @@ API documentation for %{name}.
 
 
 %prep
-%setup -q 
+%setup -q
+%patch0 -p1
+
 #let plexus-container-default be retrieved as a dependency
 sed -i -e "s|plexus-container-default|plexus-container|g" pom.xml
 
 %build
-export MAVEN_REPO_LOCAL=$(pwd)/.m2/repository
-mvn-jpp \
-        -e \
-        -Dmaven2.jpp.mode=true \
-        -Dmaven.repo.local=$MAVEN_REPO_LOCAL \
-        -Dmaven.test.skip=true \
-        install javadoc:javadoc
+# Test class MockArtifact doesn't override method getMetadata
+mvn-rpmbuild install javadoc:aggregate -Dmaven.test.skip
 
 %install
-rm -rf %{buildroot}
-
 # jars
 install -d -m 0755 %{buildroot}%{_javadir}
-install -m 644 target/%{name}-%{version}.jar   %{buildroot}%{_javadir}/%{name}-%{version}.jar
-
-(cd %{buildroot}%{_javadir} && for jar in *-%{version}*; \
-    do ln -sf ${jar} `echo $jar| sed "s|-%{version}||g"`; done)
-
-%add_to_maven_depmap org.apache.maven.plugins maven-jar-plugin %{version} JPP maven-jar-plugin
+install -m 644 target/%{name}-%{version}.jar   %{buildroot}%{_javadir}/%{name}.jar
 
 # poms
 install -d -m 755 %{buildroot}%{_mavenpomdir}
 install -pm 644 pom.xml \
     %{buildroot}%{_mavenpomdir}/JPP-%{name}.pom
+%add_maven_depmap JPP-%{name}.pom %{name}.jar
 
 # javadoc
-install -d -m 0755 %{buildroot}%{_javadocdir}/%{name}-%{version}
-cp -pr target/site/api*/* %{buildroot}%{_javadocdir}/%{name}-%{version}/
-ln -s %{name}-%{version} %{buildroot}%{_javadocdir}/%{name}
-rm -rf target/site/api*
+install -d -m 0755 %{buildroot}%{_javadocdir}/%{name}
+cp -pr target/site/api*/* %{buildroot}%{_javadocdir}/%{name}/
 
-%post
-%update_maven_depmap
-
-%postun
-%update_maven_depmap
-
-%clean
-rm -rf %{buildroot}
-
-%files
-%defattr(-,root,root,-)
-%{_javadir}/*
-%{_mavenpomdir}/*
-%{_mavendepmapfragdir}/*
+%files -f .mfiles
+%doc LICENSE NOTICE
 
 %files javadoc
-%defattr(-,root,root,-)
-%{_javadocdir}/%{name}-%{version}
+%doc LICENSE NOTICE
 %{_javadocdir}/%{name}
 
+%changelog
+* Sat Aug 03 2013 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 2.4-6
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_20_Mass_Rebuild
+
+* Thu Feb 14 2013 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 2.4-5
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_19_Mass_Rebuild
+
+* Wed Feb 06 2013 Java SIG <java-devel@lists.fedoraproject.org> - 2.4-4
+- Update for https://fedoraproject.org/wiki/Fedora_19_Maven_Rebuild
+- Replace maven BuildRequires with maven-local
+
+* Tue Nov 13 2012 Stanislav Ochotnicky <sochotnicky@redhat.com> - 2.4-3
+- Install license files
+- Use generated maven file lists
+
+* Thu Jul 19 2012 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 2.4-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_18_Mass_Rebuild
+
+* Wed Feb 15 2012 Alexander Kurtakov <akurtako@redhat.com> 2.4-1
+- Update to 2.4.0.
+
+* Fri Jan 13 2012 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 2.3.2-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_17_Mass_Rebuild
+
+* Mon Sep 19 2011 Tomas Radej <tradej@redhat.com> - 2.3.2-1
+- Updated to 2.3.2
+
+* Fri Jun 17 2011 Alexander Kurtakov <akurtako@redhat.com> 2.3.1-3
+- Build with maven 3.
+
+* Tue Feb 08 2011 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 2.3.1-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_15_Mass_Rebuild
+
+* Fri Sep 10 2010 Alexander Kurtakov <akurtako@redhat.com> 2.3.1-1
+- Update to 2.3.1.
+- Keep plexus-container-default on the dependency tree.
+- Drop depmap - not needed now.
+
+* Wed May 19 2010 Alexander Kurtakov <akurtako@redhat.com> 2.3-3
+- Add depmap.
+
+* Wed May 19 2010 Alexander Kurtakov <akurtako@redhat.com> 2.3-2
+- Requires maven-shared-archiver.
+
+* Thu May 13 2010 Alexander Kurtakov <akurtako@redhat.com> 2.3-1
+- Initial package
