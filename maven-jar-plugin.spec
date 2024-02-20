@@ -1,139 +1,130 @@
-%{?_javapackages_macros:%_javapackages_macros}
-Name:           maven-jar-plugin
-Version:        2.4
-Release:        6.1%{?dist}
-Summary:        Maven JAR Plugin
+#{?_javapackages_macros:%_javapackages_macros}
 
+# Bootstrap2 builds this plugin from source, but uses binary
+# downloads of various libraries used by it that often need
+# to be built with maven.  Refer to the package-dependencies
+# script to see where the binaries come from.
+%bcond_without bootstrap2
 
-License:        ASL 2.0
-URL:            http://maven.apache.org/plugins/maven-jar-plugin/
-Source0:        http://repo2.maven.org/maven2/org/apache/maven/plugins/%{name}/%{version}/%{name}-%{version}-source-release.zip
+%{?!_javadir:%global _javadir %{_datadir}/java}
+
+Summary:	Maven JAR Plugin
+Name:		maven-jar-plugin
+Version:	3.3.0
+Release:	1
+License:	ASL 2.0
+Group:		Development/Java
+URL:		https://maven.apache.org/plugins/maven-jar-plugin/
+Source0:	https://archive.apache.org/dist/maven/plugins/%{name}/%{version}/%{name}-%{version}-source-release.zip
+%if %{with bootstrap2}
+# Generated from Source1000
+Source3:	%{name}-dependencies-%{version}.tar.zst
+Source1000:	maven-package-dependencies.sh
+%endif
 
 # Some classes from maven-artifact come in maven-core, added a dep in pom.xml
-Patch0:         %{name}-maven-core-dep.patch
+#Patch0:	 %{name}-maven-core-dep.patch
+
+BuildRequires:	javapackages-tools
+BuildRequires:	jdk-current
+
+%if ! %{with bootstrap2}
+BuildRequires:	maven-local
+BuildRequires:	mvn(junit:junit)
+BuildRequires:	mvn(org.apache.maven.plugin-testing:maven-plugin-testing-harness)
+BuildRequires:	mvn(org.apache.maven.plugin-tools:maven-plugin-annotations)
+BuildRequires:	mvn(org.apache.maven.plugins:maven-plugin-plugin)
+BuildRequires:	mvn(org.apache.maven.plugins:maven-plugins:pom:)
+BuildRequires:	mvn(org.apache.maven.shared:file-management)
+BuildRequires:	mvn(org.apache.maven:maven-archiver)
+BuildRequires:	mvn(org.apache.maven:maven-artifact)
+BuildRequires:	mvn(org.apache.maven:maven-compat)
+BuildRequires:	mvn(org.apache.maven:maven-core)
+BuildRequires:	mvn(org.apache.maven:maven-model)
+BuildRequires:	mvn(org.apache.maven:maven-plugin-api)
+BuildRequires:	mvn(org.codehaus.plexus:plexus-utils)
+%endif
+
+#Provides:	maven2-plugin-jar = %{version}-%{release}
+#Obsoletes:	maven2-plugin-jar <= 0:2.0.8
 
 BuildArch: noarch
-
-BuildRequires: java-devel >= 1:1.6.0
-BuildRequires: javapackages-tools >= 0.7.0
-BuildRequires: maven-local
-BuildRequires: maven-plugin-plugin
-BuildRequires: maven-jar-plugin
-BuildRequires: maven-install-plugin
-BuildRequires: maven-resources-plugin
-BuildRequires: maven-compiler-plugin
-BuildRequires: maven-javadoc-plugin
-BuildRequires: maven-surefire-plugin
-BuildRequires: maven-surefire-provider-junit
-BuildRequires: maven-doxia-sitetools
-BuildRequires: maven-plugin-testing-harness
-BuildRequires: maven-archiver
-BuildRequires: plexus-archiver
-BuildRequires: apache-commons-lang
-BuildRequires: plexus-utils
-BuildRequires: junit
-Requires: maven
-Requires: maven-archiver
-Requires: plexus-archiver
-Requires: maven-archiver
-Requires: apache-commons-lang
-Requires: plexus-utils
-Requires: maven-plugin-testing-harness
-Requires: junit
-Requires: java
-
-Provides:       maven2-plugin-jar = %{version}-%{release}
-Obsoletes:      maven2-plugin-jar <= 0:2.0.8
 
 %description
 Builds a Java Archive (JAR) file from the compiled
 project classes and resources.
 
-%package javadoc
+%files -f .mfiles
+%doc LICENSE NOTICE
 
-Summary:        Javadoc for %{name}
-Requires:       jpackage-utils
+#-----------------------------------------------------------------------
+
+%if ! %{with bootstrap2}
+%package javadoc
+Summary:	Javadoc for %{name}
+Requires:	jpackage-utils
 
 %description javadoc
 API documentation for %{name}.
 
-
-%prep
-%setup -q
-%patch0 -p1
-
-#let plexus-container-default be retrieved as a dependency
-sed -i -e "s|plexus-container-default|plexus-container|g" pom.xml
-
-%build
-# Test class MockArtifact doesn't override method getMetadata
-mvn-rpmbuild install javadoc:aggregate -Dmaven.test.skip
-
-%install
-# jars
-install -d -m 0755 %{buildroot}%{_javadir}
-install -m 644 target/%{name}-%{version}.jar   %{buildroot}%{_javadir}/%{name}.jar
-
-# poms
-install -d -m 755 %{buildroot}%{_mavenpomdir}
-install -pm 644 pom.xml \
-    %{buildroot}%{_mavenpomdir}/JPP-%{name}.pom
-%add_maven_depmap JPP-%{name}.pom %{name}.jar
-
-# javadoc
-install -d -m 0755 %{buildroot}%{_javadocdir}/%{name}
-cp -pr target/site/api*/* %{buildroot}%{_javadocdir}/%{name}/
-
-%files -f .mfiles
-%doc LICENSE NOTICE
-
 %files javadoc
 %doc LICENSE NOTICE
 %{_javadocdir}/%{name}
+%endif
 
-%changelog
-* Sat Aug 03 2013 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 2.4-6
-- Rebuilt for https://fedoraproject.org/wiki/Fedora_20_Mass_Rebuild
+#-----------------------------------------------------------------------
 
-* Thu Feb 14 2013 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 2.4-5
-- Rebuilt for https://fedoraproject.org/wiki/Fedora_19_Mass_Rebuild
+%prep
+%autosetup -p1
 
-* Wed Feb 06 2013 Java SIG <java-devel@lists.fedoraproject.org> - 2.4-4
-- Update for https://fedoraproject.org/wiki/Fedora_19_Maven_Rebuild
-- Replace maven BuildRequires with maven-local
+%if %{with bootstrap2}
+cd ..
+tar xf %{S:3}
+cd -
+%endif
 
-* Tue Nov 13 2012 Stanislav Ochotnicky <sochotnicky@redhat.com> - 2.4-3
-- Install license files
-- Use generated maven file lists
+# System version of maven-jar-plugin should be used, not reactor version
+%if ! %{with bootstrap2}
+%pom_xpath_inject pom:pluginManagement/pom:plugins "<plugin><artifactId>maven-jar-plugin</artifactId><version>SYSTEM</version></plugin>"
+%endif
 
-* Thu Jul 19 2012 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 2.4-2
-- Rebuilt for https://fedoraproject.org/wiki/Fedora_18_Mass_Rebuild
+%build
+%if ! %{with bootstrap2}
+%mvn_build
+# -- -Dproject.build.sourceEncoding=UTF-8
+%else
+. %{_sysconfdir}/profile.d/90java.sh
+#mvn_build -- -Dmaven.repo.local=$(pwd)/../repository
+mvn -o -Dmaven.repo.local=$(pwd)/../repository -Dproject.build.sourceEncoding=UTF-8 compile
+mvn -o -Dmaven.repo.local=$(pwd)/../repository -Dproject.build.sourceEncoding=UTF-8 verify
+mvn -o -Dmaven.repo.local=$(pwd)/../repository -Dproject.build.sourceEncoding=UTF-8 validate
+%endif
 
-* Wed Feb 15 2012 Alexander Kurtakov <akurtako@redhat.com> 2.4-1
-- Update to 2.4.0.
+%install
+%if ! %{with bootstrap2}
+%mvn_install
+%else
+. %{_sysconfdir}/profile.d/90java.sh
+rm -f .mfiles
+#mvn -o -Dmaven.repo.local=$(pwd)/../repository -Dproject.build.sourceEncoding=UTF-8 install
 
-* Fri Jan 13 2012 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 2.3.2-2
-- Rebuilt for https://fedoraproject.org/wiki/Fedora_17_Mass_Rebuild
+# jar
+install -dm 0755 %{buildroot}%{_javadir}/%{name}/
+install -pm 0644 target/%{name}-%{version}.jar %{buildroot}%{_javadir}/%{name}/%{name}.jar
+echo "%{_javadir}/%{name}/%{name}.jar" >> .mfiles
 
-* Mon Sep 19 2011 Tomas Radej <tradej@redhat.com> - 2.3.2-1
-- Updated to 2.3.2
+# pom
+install -dm 0755 %{buildroot}%{_datadir}/maven-poms/%{name}/
+install -pm 0644 pom.xml %{buildroot}%{_datadir}/maven-poms/%{name}/%{name}.pom
+echo "%{_datadir}/maven-poms/%{name}/%{name}.pom" >> .mfiles
 
-* Fri Jun 17 2011 Alexander Kurtakov <akurtako@redhat.com> 2.3.1-3
-- Build with maven 3.
+# metadata
+install -dm 0755 %{buildroot}%{_datadir}/maven-metadata/
+python /usr/share/java-utils/maven_depmap.py \
+	%{buildroot}%{_datadir}/maven-metadata/%{name}.xml \
+	%{buildroot}%{_datadir}/maven-poms/%{name}/%{name}.pom \
+	%{buildroot}%{_javadir}/%{name}/%{name}.jar
+#install -pm 0644 pom.xml %{buildroot}%{_datadir}/maven-metadata/%{name}.xml
+echo "%{_datadir}/maven-metadata/%{name}.xml" >> .mfiles
+%endif
 
-* Tue Feb 08 2011 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 2.3.1-2
-- Rebuilt for https://fedoraproject.org/wiki/Fedora_15_Mass_Rebuild
-
-* Fri Sep 10 2010 Alexander Kurtakov <akurtako@redhat.com> 2.3.1-1
-- Update to 2.3.1.
-- Keep plexus-container-default on the dependency tree.
-- Drop depmap - not needed now.
-
-* Wed May 19 2010 Alexander Kurtakov <akurtako@redhat.com> 2.3-3
-- Add depmap.
-
-* Wed May 19 2010 Alexander Kurtakov <akurtako@redhat.com> 2.3-2
-- Requires maven-shared-archiver.
-
-* Thu May 13 2010 Alexander Kurtakov <akurtako@redhat.com> 2.3-1
-- Initial package
